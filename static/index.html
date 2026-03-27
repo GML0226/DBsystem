@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实验室智能管理系统 | Lab System</title>
+    <!-- 全新 CSS 系统 -->
+    <link rel="stylesheet" href="css/style.css">
+    <!-- 图标库 FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <!-- SweetAlert2 优雅弹窗 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Marked.js 用于精准渲染 Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+
+<body>
+    <!-- 侧边导航栏 -->
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <i class="fas fa-atom"></i> AI LIMS
+        </div>
+        <div class="nav-links">
+            <a href="#" class="nav-item active" data-target="dashboard">
+                <i class="fas fa-chart-pie"></i> 数据大屏
+            </a>
+            <a href="#" class="nav-item" data-target="members">
+                <i class="fas fa-users-viewfinder"></i> 成员管理
+            </a>
+            <a href="#" class="nav-item" data-target="equipment">
+                <i class="fas fa-microscope"></i> 设备台账
+            </a>
+            <a href="#" class="nav-item" data-target="reservations">
+                <i class="fas fa-calendar-check"></i> 设备预约
+            </a>
+            <a href="#" class="nav-item" data-target="inventory">
+                <i class="fas fa-box-open"></i> 库存总览
+            </a>
+            <a href="#" class="nav-item" data-target="requisitions">
+                <i class="fas fa-file-signature"></i> 耗材审批
+            </a>
+            <a href="#" class="nav-item" data-target="ai">
+                <i class="fas fa-robot"></i> AI 智能分析
+            </a>
+            <a href="#" class="nav-item" data-target="graph">
+                <i class="fas fa-diagram-project"></i> 关系图谱搜索
+            </a>
+        </div>
+    </nav>
+
+    <!-- 顶部状态栏 -->
+    <header class="top-header">
+        <div class="header-left" style="display: flex; align-items: center; gap: 1rem;">
+            <button class="btn btn-outline menu-toggle" id="menu-toggle-btn"
+                style="display: none; width: 40px; height: 40px; padding: 0;">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="title-area">
+                <h2
+                    style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 600; color: var(--text-main);">
+                    实验室仪器预约与耗材流转系统</h2>
+            </div>
+        </div>
+        <div class="header-right" style="display: flex; align-items: center; gap: 1.5rem;">
+            <div class="role-switcher">
+                <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">当前测试用户：</span>
+                <select id="current-role-select">
+                    <option value="" disabled selected>-- 载入中 --</option>
+                </select>
+            </div>
+            <button class="btn btn-outline btn-sm" id="snow-btn" onclick="app.ui.toggleSnow()"
+                style="width: 40px; height: 40px; padding: 0;" title="雪花特效开关">
+                <i class="fas fa-snowflake"></i>
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="app.ui.toggleTheme()"
+                style="width: 40px; height: 40px; padding: 0;">
+                <i id="theme-icon" class="fas fa-moon"></i>
+            </button>
+        </div>
+    </header>
+
+    <div id="snow-container" class="snow-container"></div>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <!-- Toast 容器 -->
+        <div id="toast-container" class="toast-container"></div>
+
+        <!-- =========== 数据大屏 =========== -->
+        <section id="dashboard" class="page-section">
+            <header class="page-header">
+                <div>
+                    <h1 class="page-title" data-text="数据监控大屏">数据监控大屏</h1>
+                    <div class="page-subtitle">近30天实验室资源流转与损耗深度分析</div>
+                </div>
+            </header>
+
+            <div class="stats-grid">
+                <div class="stat-card spotlight-card blue">
+                    <i class="fas fa-microscope stat-icon"></i>
+                    <div class="stat-label">注册设备总数</div>
+                    <div id="dash-eq-count" class="stat-value">--</div>
+                </div>
+                <div class="stat-card spotlight-card orange">
+                    <i class="fas fa-wrench stat-icon"></i>
+                    <div class="stat-label">高负荷/需维保设备</div>
+                    <div id="dash-mt-count" class="stat-value">--</div>
+                </div>
+                <div class="stat-card spotlight-card green">
+                    <i class="fas fa-clipboard-check stat-icon"></i>
+                    <div class="stat-label">本月预约总人次</div>
+                    <div id="dash-rs-count" class="stat-value">--</div>
+                </div>
+                <div class="stat-card spotlight-card red">
+                    <i class="fas fa-triangle-exclamation stat-icon"></i>
+                    <div class="stat-label">库存预警项目</div>
+                    <div id="dash-wr-count" class="stat-value">--</div>
+                </div>
+            </div>
+
+            <!-- 可视化图表区 -->
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <div class="chart-card-header">高频借阅设备排行 (Top 10)</div>
+                    <div id="chart-equipment" class="chart-container"></div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        耗材消耗排行榜
+                        <select id="consumable-range-select"
+                            style="padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; border: 1px solid var(--border);"
+                            onchange="app.dashboard.loadConsumableRanking(this.value)">
+                            <option value="30">近 30 天</option>
+                            <option value="90" selected>近一季度</option>
+                            <option value="180">近半年</option>
+                            <option value="365">近一年</option>
+                        </select>
+                    </div>
+                    <div id="chart-consumable" class="chart-container"></div>
+                </div>
+            </div>
+
+            <!-- 导师概况查验区 -->
+            <div class="chart-card mb-4">
+                <div class="chart-card-header">
+                    导师名下资源使用复杂统计
+                    <div style="display: flex; gap: 10px; font-weight: normal; font-size:0.9rem;">
+                        <select id="mentor-select"
+                            style="padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border);">
+                            <option value="">-- 选择导师 --</option>
+                        </select>
+                        <button class="btn btn-primary" style="padding: 4px 12px; font-size: 0.85rem;"
+                            onclick="app.dashboard.loadMentorStats()">查 询</button>
+                    </div>
+                </div>
+                <div style="display:flex; justify-content: space-around; padding: 10px 0;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 5px;">名下学生总设备使用次数</div>
+                        <div id="mentor-eq-total" style="font-size: 1.8rem; font-weight: 700; color: var(--primary);">0
+                        </div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 5px;">名下学生累计消耗耗材数</div>
+                        <div id="mentor-cs-total" style="font-size: 1.8rem; font-weight: 700; color: var(--warning);">0
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 高级反查功能区 -->
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        设备画像深度反查
+                        <select id="insight-eq-select"
+                            style="padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; border: 1px solid var(--border);"
+                            onchange="app.dashboard.loadEquipmentInsight()">
+                            <option value="">-- 选择设备 --</option>
+                        </select>
+                    </div>
+                    <div style="padding: 10px;">
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">
+                            该设备全生命周期累积借用总数: <span id="eq-insight-total"
+                                style="font-weight:700; color:var(--primary);">--</span> 次 (不随维保清零)
+                        </div>
+                        <div style="max-height: 200px; overflow-y: auto;">
+                            <table style="font-size: 0.75rem;">
+                                <thead>
+                                    <tr>
+                                        <th>借用人</th>
+                                        <th>起始时间</th>
+                                        <th>状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="eq-insight-history"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        耗材归属流转分析
+                        <select id="insight-cs-select"
+                            style="padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; border: 1px solid var(--border);"
+                            onchange="app.dashboard.loadConsumableDistribution()">
+                            <option value="">-- 选择耗材 --</option>
+                        </select>
+                    </div>
+                    <div id="chart-consumable-dist" class="chart-container" style="height: 240px;"></div>
+                </div>
+            </div>
+
+            <!-- 数据表格区 -->
+            <div class="charts-grid">
+                <div class="chart-card" style="padding: 0; overflow: hidden;">
+                    <div class="chart-card-header" style="padding: 1.5rem 1.5rem 0 1.5rem;">维保状态监控 (按使用频率)</div>
+                    <div style="overflow-x: auto; max-height: 250px; margin-top: 1rem;">
+                        <table style="font-size: 0.85rem;">
+                            <thead
+                                style="position: sticky; top: 0; background: var(--bg-card); z-index: 10; padding-top: 0.5rem;">
+                                <tr>
+                                    <th>设备</th>
+                                    <th>状态</th>
+                                    <th>累计使用</th>
+                                    <th>维保阈值</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dash-maintenance-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="chart-card" style="padding: 0; overflow: hidden; border-left: 4px solid var(--danger);">
+                    <div class="chart-card-header" style="padding: 1.5rem 1.5rem 0 1.5rem; color: var(--danger);">
+                        实时库存预警日志</div>
+                    <div style="overflow-x: auto; max-height: 250px; margin-top: 1rem;">
+                        <table style="font-size: 0.85rem;">
+                            <thead
+                                style="position: sticky; top: 0; background: var(--bg-card); z-index: 10; padding-top: 0.5rem;">
+                                <tr>
+                                    <th>预警时间</th>
+                                    <th>警示详情</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dash-warning-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========== 成员管理 =========== -->
+        <section id="members" class="page-section hidden">
+            <header class="page-header">
+                <div>
+                    <h1 class="page-title" data-text="成员管理">成员管理</h1>
+                    <div class="page-subtitle">管理导师与学生层级关系，分配实验室权限。</div>
+                </div>
+                <button class="btn btn-primary" onclick="app.members.openModal()"><i class="fas fa-plus"></i>
+                    新增成员</button>
+            </header>
+            <div class="data-table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>成员 ID</th>
+                            <th>姓名</th>
+                            <th>角色层级</th>
+                            <th>直属导师</th>
+                            <th style="text-align: right;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="members-list"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- =========== 设备管理 =========== -->
+        <section id="equipment" class="page-section hidden">
+            <header class="page-header">
+                <div>
+                    <h1 class="page-title" data-text="设备台账">设备台账</h1>
+                    <div class="page-subtitle">登记高价值仪器设备，设置维保周期。</div>
+                </div>
+                <button class="btn btn-primary" onclick="app.equipment.openModal()"><i class="fas fa-plus"></i>
+                    登记设备</button>
+            </header>
+            <div class="data-table-container">
+                <table>
+                    <thead class="glass-header">
+                        <tr>
+                            <th>编号</th>
+                            <th>设备名称</th>
+                            <th>状态</th>
+                            <th>使用次数</th>
+                            <th>额度上限</th>
+                            <th style="text-align: right;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="equipment-list"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- =========== 设备预约 =========== -->
+        <section id="reservations" class="page-section hidden">
+            <header class="page-header">
+                <div>
+                    <h1 class="page-title" data-text="设备预约中心">设备预约中心</h1>
+                    <div class="page-subtitle">协调设备使用冲突，记录借阅流水。</div>
+                </div>
+                <button class="btn btn-primary" onclick="app.reservations.openModal()"><i
+                        class="fas fa-calendar-plus"></i> 申请预约</button>
+            </header>
+            
+            <!-- 新增：时间窗口筛选区 -->
+            <div class="filter-container" style="margin-bottom: 20px; display: flex; gap: 15px; align-items: center; background: var(--bg-color); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-filter text-muted"></i>
+                    <strong>时间筛选 :</strong>
+                </div>
+                <input type="datetime-local" id="reservation-start-time" class="form-control" style="width: auto;">
+                <span>至</span>
+                <input type="datetime-local" id="reservation-end-time" class="form-control" style="width: auto;">
+                <button class="btn btn-secondary" onclick="app.reservations.load()"><i class="fas fa-search"></i> 查询</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('reservation-start-time').value=''; document.getElementById('reservation-end-time').value=''; app.reservations.load()" style="background-color: transparent; border-color: transparent; color: var(--text-color);"><i class="fas fa-undo"></i> 重置</button>
+            </div>
+
+            <div class="data-table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>流水号</th>
+                            <th>预约人</th>
+                            <th>借用设备</th>
+                            <th>开始时间</th>
+                            <th>预期归还</th>
+                            <th>实际归还</th>
+                            <th style="text-align: right;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reservations-list"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- =========== 库存管理 =========== -->
+        <section id="inventory" class="page-section hidden">
+            <header class="page-header">
+                <div>
+                    <h1 class="page-title" data-text="耗材库存总览">耗材库存总览</h1>
+                    <div class="page-subtitle">管理实验流转耗材，自动触发低库存预警。</div>
+                </div>
+                <button class="btn btn-primary" onclick="app.inventory.openModal()"><i class="fas fa-plus"></i>
+                    录入耗材</button>
+            </header>
+            <div class="data-table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>物品编码</th>
+                            <th>耗材名称</th>
+                            <th>当前库存总量</th>
+                            <th>预警触发阈值</th>
+                            <th style="text-align: right;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventory-list"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- =========== 耗材审批 =========== -->
+        <section id="requisitions" class="page-section hidden">
+            <header class="page-header">
+                <div>
+                    <h1 class="page-title" data-text="耗材审批流转">耗材审批流转</h1>
+                    <div class="page-subtitle">记录耗材申领流水，审核后智能扣减总库存。</div>
+                </div>
+                <button class="btn btn-primary" onclick="app.requisitions.openModal()"><i
+                        class="fas fa-hand-holding-box"></i> 提交申领</button>
+            </header>
+
+            <!-- 新增：时间窗口筛选区 -->
+            <div class="filter-container" style="margin-bottom: 20px; display: flex; gap: 15px; align-items: center; background: var(--bg-color); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-filter text-muted"></i>
+                    <strong>时间筛选 :</strong>
+                </div>
+                <input type="datetime-local" id="requisition-start-time" class="form-control" style="width: auto;">
+                <span>至</span>
+                <input type="datetime-local" id="requisition-end-time" class="form-control" style="width: auto;">
+                <button class="btn btn-secondary" onclick="app.requisitions.load()"><i class="fas fa-search"></i> 查询</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('requisition-start-time').value=''; document.getElementById('requisition-end-time').value=''; app.requisitions.load()" style="background-color: transparent; border-color: transparent; color: var(--text-color);"><i class="fas fa-undo"></i> 重置</button>
+            </div>
+
+            <div class="data-table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>申领单号</th>
+                            <th>申请人</th>
+                            <th>申领物品</th>
+                            <th>领用数量</th>
+                            <th>申请时间</th>
+                            <th>审批状态</th>
+                            <th style="text-align: right;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="requisitions-list"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- =========== AI 智能分析 =========== -->
+        <section id="ai" class="page-section hidden">
+            <header class="page-header">
+                <div>
+                    <h1 class="page-title" data-text="AI 智能决策中心">AI 智能决策中心</h1>
+                    <div class="page-subtitle">基于 Google Gemini/DeepSeek等AI的实验室资源流转深度洞察与趋势预测。</div>
+                </div>
+            </header>
+
+            <div class="charts-grid" style="grid-template-columns: 350px 1fr;">
+                <!-- 左侧配置侧栏 -->
+                <div class="chart-card" style="height: fit-content;">
+                    <div class="chart-card-header">分析配置</div>
+                    <div class="form-group">
+                        <label>API 提供商</label>
+                        <select id="ai-provider-select" onchange="app.ai.handleProviderChange()">
+                            <option value="gemini">Google Gemini (原生平台)</option>
+                            <option value="siliconflow">硅基流动 (SiliconFlow)</option>
+                            <option value="openai">自定义 OpenAI 兼容源</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="ai-baseurl-container" style="display: none;">
+                        <label>接口地址 (Base URL)</label>
+                        <input type="text" id="ai-base-url" placeholder="https://api.yourprovider.com/v1">
+                    </div>
+                    <div class="form-group">
+                        <label>API Key</label>
+                        <input type="password" id="ai-api-key" placeholder="粘贴您的 API Key">
+                    </div>
+                    <div class="form-group">
+                        <label>选择分析模型</label>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="ai-model-select" style="flex: 1;">
+                                <option value="models/gemini-1.5-pro">Gemini 1.5 Pro (推荐)</option>
+                            </select>
+                            <button type="button" class="btn btn-outline" style="padding: 0 10px;"
+                                onclick="app.ai.fetchModels()" title="拉取全部可用模型"><i class="fas fa-rotate"></i></button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Prompt 模板</label>
+                        <textarea id="ai-prompt-template"
+                            style="width: 100%; height: 120px; padding: 0.75rem; border-radius: var(--radius-md); border: 1px solid var(--border); font-family: var(--font-sans); font-size: 0.9rem; resize: none;">你是一位专业的实验室管理专家。请根据提供的实验室设备预约、耗材使用、成员活跃度及库存预警数据，发掘各维度之间的隐性关联。
+请给出：
+1. 详尽的预约与流转分析总结。
+2. 资源配比的优化建议。
+3. 未来3个月的趋势预测与风险预警。
+要求分析深入且具前瞻性，以 Markdown 格式输出。</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>分析周期</label>
+                        <select id="ai-analysis-period">
+                            <option value="30d" selected>近30天</option>
+                            <option value="quarter">近一季度</option>
+                            <option value="half_year">近半年</option>
+                            <option value="year">近一年</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" style="width: 100%;" onclick="app.ai.runAnalysis()">
+                        <i class="fas fa-wand-magic-sparkles"></i> 开始执行智能分析
+                    </button>
+                    <div id="ai-status"
+                        style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+                    </div>
+                </div>
+
+                <!-- 右侧结果展示区域 -->
+                <div class="chart-card no-hover" style="min-height: 600px; display: flex; flex-direction: column;">
+                    <div class="chart-card-header">
+                        分析报告
+                        <button class="btn btn-outline btn-sm" onclick="app.ai.copyResult()"><i class="fas fa-copy"></i>
+                            复制报告</button>
+                    </div>
+                    <div id="ai-result-content" class="ai-markdown-container">
+                        <div class="flex-center"
+                            style="height: 100%; color: var(--text-muted); flex-direction: column; gap: 1rem;">
+                            <i class="fas fa-brain" style="font-size: 3rem; opacity: 0.2;"></i>
+                            <p>待执行分析，完成后报告将在此处生成</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========== 关系图谱搜索 =========== -->
+        <section id="graph" class="page-section hidden">
+            <header class="page-header">
+                <div>
+                    <h1 class="page-title" data-text="实验室关系图谱">实验室关系图谱</h1>
+                    <div class="page-subtitle">多维度资源联结深度可视化，挖掘隐性关联关系。</div>
+                </div>
+            </header>
+
+            <div class="chart-card no-hover"
+                style="width: 100%; aspect-ratio: 1 / 1; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; padding: 0;">
+                <div style="padding: 1.5rem; display: flex; gap: 1rem; border-bottom: 1px solid var(--border);">
+                    <input type="text" id="graph-search-input" placeholder="输入成员、设备或耗材关键词..."
+                        style="flex: 1; min-width: 0;" onkeypress="if(event.key === 'Enter') app.graph.load()">
+                    <button class="btn btn-primary" onclick="app.graph.load()"><i class="fas fa-search"></i>
+                        关系检索</button>
+                    <button class="btn btn-outline" onclick="app.graph.reset()"><i class="fas fa-rotate-left"></i>
+                        重置视图</button>
+                </div>
+                <div id="chart-kg-container" style="flex: 1; width: 100%;"></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 公用表单侧边抽屉 (由 JS 动态渲染) -->
+    <div id="common-modal" class="drawer-overlay">
+        <div class="drawer">
+            <div class="drawer-header">
+                <h2 id="modal-title" class="drawer-title">标题</h2>
+                <i class="fas fa-times" style="cursor: pointer; font-size: 1.25rem; color: var(--text-muted);"
+                    onclick="app.ui.closeModal()"></i>
+            </div>
+            <form id="common-form" onsubmit="event.preventDefault(); app.modalSubmitHandler();">
+                <div id="modal-body"></div>
+                <div class="flex-between mt-4">
+                    <button type="button" class="btn btn-outline" onclick="app.ui.closeModal()">取消</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> 确认保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 逻辑入口，增加版本号防止缓存导致 JS 更新不生效 -->
+    <script src="js/app.js?v=1.1"></script>
+</body>
+
+</html>
